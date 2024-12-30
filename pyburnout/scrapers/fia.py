@@ -6,7 +6,7 @@ import logging
 
 
 class FIASiteScraper:
-    def __init__(self, logger=None):
+    def __init__(self, logger: logging.Logger = None):
         self.BASE_URL = "https://www.fia.com"
         self.DOCUMENT_PATH = "documents/list"
         self.BASE_DOCS_PATH = "./fia-docs"
@@ -64,7 +64,9 @@ class FIASiteScraper:
 
         self.logger = logger if logger else logging.Logger(__name__)
 
-    def download_documents(self, current_season, current_championship, current_event):
+    def download_documents(
+        self, current_season: str, current_championship: str, current_event: str
+    ):
         self.logger.info("Beginning Scraping of Documents")
         self.logger.info(f"Season: {current_season}")
         self.logger.info(f"Championship: {current_championship}")
