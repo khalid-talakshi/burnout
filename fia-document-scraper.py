@@ -21,17 +21,24 @@ championship_paths = {
 }
 
 event_paths = {
-    "bahrain-test": "Bahrain Test Season",
+    "bahrain-test": "Bahrain Tests Season",
     "bahrain": "Bahrain Grand Prix",
     "australia": "Australian Grand Prix",
     "azerbaijan": "Azerbaijan Grand Prix",
+    "azerbaidjan": "Azerbaidjan Grand Prix",
     "abh dhabi": "Abu Dhabi Grand Prix",
     "austria": "Austrian Grand Prix", 
-    "belgium": "Belgian Grand Prix",
+    "belgian": "Belgian Grand Prix",
+    "belgium": "Belgium Grand Prix",
     "british": "British Grand Prix",
     "canada": "Canadian Grand Prix",
     "chinese": "Chinese Grand Prix",
     "dutch": "Dutch Grand Prix",
+    "eifel": "Eifel Grand Prix",
+    "f1 abu dhabi": "F1 Etihad Airways Abu Dhabi Grand Prix",
+    "f1 70th": "Formula 1 70th Anniversary Grand Prix",
+    "french": "French Grand Prix",
+    "german": "German Grand Prix",
     "imola": "Emilia Romagna Grand Prix",
     "hungary": "Hungarian Grand Prix",
     "italy": "Italian Grand Prix",
@@ -91,12 +98,18 @@ def download_documents(current_season, current_championship, current_event):
         os.makedirs(docs_folder, exist_ok=True)
 
         logging.info(f"Writing File - {doc_name}.pdf")
-        with open(f"{docs_folder}/{doc_name}.pdf", "wb") as f:
+
+        file_path = f"{docs_folder}/{doc_name}.pdf"
+
+        if os.path.exists(file_path):
+            logging.info("File Exists - Skipping")
+            continue
+        
+        with open(file_path, "wb") as f:
             doc_res = requests.get(f"{BASE_URL}{site_link}")
             f.write(doc_res.content)
 
 if __name__ == '__main__':
-    for year_key in dict.keys(season_paths):
         for championship_key in dict.keys(championship_paths):
             for event_key in dict.keys(event_paths):
-               download_documents(year_key, championship_key, event_key)
+               download_documents('2024', championship_key, event_key)
