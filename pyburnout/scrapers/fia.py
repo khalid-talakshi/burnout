@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 from urllib.parse import quote
+from datetime import datetime
 import requests
 import os
 import logging
@@ -83,15 +84,17 @@ class FIASiteScraper:
 
         if len(documents) == 0:
             documents = soup.find_all("li", class_="document-row")
-            li_flag = True
             if len(documents) == 0:
                 self.logger.info("No Documents Found")
+            else:
+                li_flag = True
 
         for document in documents:
             inner_element = document.find("a")
             if not inner_element:
                 continue
             site_link = inner_element.get("href")
+
             name_element = (
                 inner_element.find("div", class_="title")
                 if li_flag
@@ -99,15 +102,33 @@ class FIASiteScraper:
                     "div", class_="field-item"
                 )
             )
+
+            published_element = (
+                inner_element.find("div", class_="published")
+                if li_flag
+                else inner_element.find("div", class_="field-name-field-published-date").find(
+                    "div", class_="field-item"
+                )
+            ).find("span", class_="date-display-single")
+
             doc_name = name_element.get_text().strip()
+
+            published_date_text = published_element.get_text().split(" ")[0].strip()
+            self.logger.info(f"Published Date: {published_date_text}")
+            doc_date = datetime.strptime(published_date_text, "%d.%m.%y").strftime(
+                "%Y-%m-%d"
+            )
+
+            self.logger.info(f"Document Name: {doc_name}")
+            self.logger.info(f"Published Date: {doc_date}")
 
             docs_folder = f"{self.BASE_DOCS_PATH}/{current_season}/{current_championship}/{current_event}"
 
             os.makedirs(docs_folder, exist_ok=True)
 
-            self.logger.info(f"Writing File - {doc_name}.pdf")
+            self.logger.info(f"Writing File - {doc_date}-{doc_name}.pdf")
 
-            file_path = f"{docs_folder}/{doc_name}.pdf"
+            file_path = f"{docs_folder}/{doc_date}-{doc_name}.pdf"
 
             if os.path.exists(file_path):
                 self.logger.info("File Exists - Skipping")
