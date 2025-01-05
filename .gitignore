@@ -2,3 +2,7 @@ venv
 fia-docs
 assets
 __pycache__
+*.egg-info
+build
+f2-data
+.vscode

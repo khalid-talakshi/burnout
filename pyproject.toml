@@ -13,7 +13,9 @@ requires-python = ">=3.11"
 authors = [
     {name = "Khalid Talakshi", email = "khalid.talakshi@outlook.com"},
 ]
-urls = {Repository = "https://github.com/khalid-talakshi/burnout}
 description = "Code for the Burnouts F1 Podcast"
 keywords = ["f1", "python", "data", "api"]
 dependencies = ["requests", "beautifulsoup4", "urllib3"]
+
+[project.urls]
+Repository = "https://github.com/khalid-talakshi/burnout"
