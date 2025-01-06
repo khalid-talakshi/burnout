@@ -1,9 +1,11 @@
 from bs4 import BeautifulSoup
 from urllib.parse import quote
 from datetime import datetime
+from typing import List, Tuple
 import requests
 import os
 import logging
+import re
 
 
 class FIASiteScraper:
@@ -65,6 +67,35 @@ class FIASiteScraper:
 
         self.logger = logger if logger else logging.Logger(__name__)
 
+    def scrape_documents(self, soup: BeautifulSoup) -> List[Tuple[str]]:
+        docs = soup.select(
+            "ul.document-row-wrapper > li[class^='document-row key-'] > div.node-decision-document > a"
+        )
+        if not docs:
+            self.logger.info("No Documents Found")
+            return []
+
+        result = []
+
+        for doc in docs:
+            link = doc.get("href")
+            title = doc.select_one("div.title").get_text(strip=True)
+
+            pdate = (
+                doc.select_one("div.published")
+                .get_text(strip=True)
+                .replace("Published on", "")
+            )
+            d, _ = re.search(r"([^A-Z]+)([A-Z]+)", pdate).groups()
+
+            published = datetime.strptime(d, "%d.%m.%y %H:%M").strftime("%Y-%m-%d")
+
+            self.logger.info(f"Published Date: {published}")
+
+            result.append((link, title, published))
+
+        return result
+
     def download_documents(
         self, current_season: str, current_championship: str, current_event: str
     ):
@@ -79,63 +110,25 @@ class FIASiteScraper:
 
         soup = BeautifulSoup(html_content, "html.parser")
 
-        documents = soup.find_all("div", class_="node-decision-document")
-        li_flag = False
+        documents = self.scrape_documents(soup)
 
-        if len(documents) == 0:
-            documents = soup.find_all("li", class_="document-row")
-            if len(documents) == 0:
-                self.logger.info("No Documents Found")
-            else:
-                li_flag = True
+        for doc in documents:
+            link, title, published = doc
 
-        for document in documents:
-            inner_element = document.find("a")
-            if not inner_element:
-                continue
-            site_link = inner_element.get("href")
-
-            name_element = (
-                inner_element.find("div", class_="title")
-                if li_flag
-                else inner_element.find("div", class_="field-name-title-field").find(
-                    "div", class_="field-item"
-                )
-            )
-
-            published_element = (
-                inner_element.find("div", class_="published")
-                if li_flag
-                else inner_element.find("div", class_="field-name-field-published-date").find(
-                    "div", class_="field-item"
-                )
-            ).find("span", class_="date-display-single")
-
-            doc_name = name_element.get_text().strip()
-
-            published_date_text = published_element.get_text().split(" ")[0].strip()
-            self.logger.info(f"Published Date: {published_date_text}")
-            doc_date = datetime.strptime(published_date_text, "%d.%m.%y").strftime(
-                "%Y-%m-%d"
-            )
-
-            self.logger.info(f"Document Name: {doc_name}")
-            self.logger.info(f"Published Date: {doc_date}")
-
-            docs_folder = f"{self.BASE_DOCS_PATH}/{current_season}/{current_championship}/{current_event}"
-
+            docs_folder = f"{self.BASE_DOCS_PATH}/{current_season}{current_championship}/{current_event}"
             os.makedirs(docs_folder, exist_ok=True)
 
-            self.logger.info(f"Writing File - {doc_date}-{doc_name}.pdf")
+            self.logger.info(f"Writing File - {published}-{title}.pdf")
 
-            file_path = f"{docs_folder}/{doc_date}-{doc_name}.pdf"
+            file_path = f"{docs_folder}/{published}-{title}.pdf"
 
             if os.path.exists(file_path):
                 self.logger.info("File Exists - Skipping")
                 continue
 
             with open(file_path, "wb") as f:
-                doc_res = requests.get(f"{self.BASE_URL}{site_link}")
+                doc_res = requests.get(f"{self.BASE_URL}{link}")
+                doc_res.raise_for_status()
                 f.write(doc_res.content)
 
     def bulk_download_all_documents(self, year="2024"):
