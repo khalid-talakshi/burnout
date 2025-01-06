@@ -5,6 +5,7 @@ from typing import List, Tuple
 import requests
 import os
 import logging
+import re
 
 
 class FIASiteScraper:
@@ -74,13 +75,24 @@ class FIASiteScraper:
             self.logger.info("No Documents Found")
             return []
 
-        result = [
-            (
-                doc.get("href"),
-                doc.select_one("div.title").get_text(strip=True),
+        result = []
+
+        for doc in docs:
+            link = doc.get("href")
+            title = doc.select_one("div.title").get_text(strip=True)
+
+            pdate = (
+                doc.select_one("div.published")
+                .get_text(strip=True)
+                .replace("Published on", "")
             )
-            for doc in docs
-        ]
+            d, _ = re.search(r"([^A-Z]+)([A-Z]+)", pdate).groups()
+
+            published = datetime.strptime(d, "%d.%m.%y %H:%M").strftime("%Y-%m-%d")
+
+            self.logger.info(f"Published Date: {published}")
+
+            result.append((link, title, published))
 
         return result
 
@@ -101,14 +113,14 @@ class FIASiteScraper:
         documents = self.scrape_documents(soup)
 
         for doc in documents:
-            link, title = doc
+            link, title, published = doc
 
             docs_folder = f"{self.BASE_DOCS_PATH}/{current_season}{current_championship}/{current_event}"
             os.makedirs(docs_folder, exist_ok=True)
 
-            self.logger.info(f"Writing File - {title}.pdf")
+            self.logger.info(f"Writing File - {published}-{title}.pdf")
 
-            file_path = f"{docs_folder}/{title}.pdf"
+            file_path = f"{docs_folder}/{published}-{title}.pdf"
 
             if os.path.exists(file_path):
                 self.logger.info("File Exists - Skipping")
