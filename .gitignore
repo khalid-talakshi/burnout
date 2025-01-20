@@ -6,3 +6,4 @@ __pycache__
 build
 f2-data
 .vscode
+.venv
