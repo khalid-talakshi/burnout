@@ -140,6 +140,10 @@ def server(input, output, session):
                 y="Speed",
                 template="plotly_dark",
             )
+            speed_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
+            )
 
             return speed_plot
         return None
@@ -164,6 +168,10 @@ def server(input, output, session):
                 x="Time",
                 y="nGear",
                 template="plotly_dark",
+            )
+            speed_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
             )
 
             return speed_plot
@@ -190,6 +198,10 @@ def server(input, output, session):
                 y="RPM",
                 template="plotly_dark",
             )
+            speed_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
+            )
 
             return speed_plot
         return None
@@ -215,6 +227,10 @@ def server(input, output, session):
                 y="Throttle",
                 template="plotly_dark",
             )
+            speed_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
+            )
 
             return speed_plot
         return None
@@ -239,6 +255,10 @@ def server(input, output, session):
                 x="Time",
                 y="Brake",
                 template="plotly_dark",
+            )
+            speed_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
             )
 
             return speed_plot
