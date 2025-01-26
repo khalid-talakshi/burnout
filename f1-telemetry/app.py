@@ -1,7 +1,9 @@
+import fastf1.core
 import fastf1.events
 from shiny import App, ui, reactive, render
 from shinyswatch import theme
 import fastf1
+from fastf1.plotting import list_compounds, get_compound_color
 from constants import (
     conventional_session_options,
     sprint_session_options,
@@ -9,6 +11,13 @@ from constants import (
 )
 from shinywidgets import output_widget, render_widget
 import plotly.express as px
+
+
+def get_driver_options(session: fastf1.core.Session):
+    driver_numbers = session.results
+    print(driver_numbers)
+    driver_abbreviations = driver_numbers["Abbreviation"].to_list()
+    return driver_abbreviations
 
 
 app_ui = ui.page_sidebar(
@@ -22,7 +31,9 @@ app_ui = ui.page_sidebar(
     ui.navset_tab(
         ui.nav_panel(
             "Laps",
-            ui.output_data_frame("laps_df"),
+            ui.card(
+                ui.output_data_frame("laps_df"),
+            ),
         ),
         ui.nav_panel(
             "Telemetry",
@@ -32,6 +43,11 @@ app_ui = ui.page_sidebar(
             ui.card(output_widget("lap_rpm_plot")),
             ui.card(output_widget("lap_throttle_plot")),
             ui.card(output_widget("lap_brake_plot")),
+        ),
+        ui.nav_panel(
+            "Analysis",
+            ui.card(output_widget("tyre_deg_plot")),
+            ui.card(output_widget("tyre_stint_boxplot")),
         ),
     ),
     title="F1 Telemetry",
@@ -92,7 +108,7 @@ def server(input, output, session):
             event_session_data.set(data)
             ui.update_select(
                 "driver",
-                choices=event_session_data().drivers
+                choices=get_driver_options(event_session_data())
                 if event_session_data() is not None
                 else [],
             )
@@ -114,8 +130,37 @@ def server(input, output, session):
     @render.data_frame
     def laps_df():
         if event_session_data() is not None:
+            data = event_session_data().laps.pick_driver(input.driver())
+            data["Lap"] = data["LapTime"].apply(lambda x: x.total_seconds())
+            data["Lap Number"] = data["LapNumber"]
+            data["Sector 1"] = data["Sector1Time"].apply(lambda x: x.total_seconds())
+            data["Sector 2"] = data["Sector2Time"].apply(lambda x: x.total_seconds())
+            data["Sector 3"] = data["Sector3Time"].apply(lambda x: x.total_seconds())
+            data["Valid"] = data["IsAccurate"].apply(lambda x: True if x else False)
+            data["Compound"] = data["Compound"]
+            data = data[
+                [
+                    "Driver",
+                    "Lap Number",
+                    "Lap",
+                    "Valid",
+                    "Sector 1",
+                    "Sector 2",
+                    "Sector 3",
+                    "Compound",
+                ]
+            ]
             return render.DataTable(
-                event_session_data().laps.pick_driver(input.driver())
+                data,
+                filters=True,
+                styles=[
+                    {
+                        "style": {
+                            "backgroundColor": "#2D2D2D",
+                            "color": "white",
+                        },
+                    }
+                ],
             )
         return None
 
@@ -262,6 +307,91 @@ def server(input, output, session):
             )
 
             return speed_plot
+        return None
+
+    @render_widget
+    def tyre_deg_plot():
+        if event_session_data() is not None:
+            event_data = event_session_data().laps.pick_drivers(input.driver())
+            event_data = event_data[event_data["IsAccurate"]]
+            tyre_deg_data = event_data[
+                ["LapTime", "TyreLife", "Compound", "Stint"]
+            ].sort_values("Stint")
+            tyre_deg_data["Stint"] = tyre_deg_data["Stint"].apply(lambda x: int(x))
+            tyre_deg_data["LapTime"] = tyre_deg_data["LapTime"].apply(
+                lambda x: x.total_seconds()
+            )
+
+            compound_colours = list_compounds(event_session_data())
+            print(compound_colours)
+            colour_compound_map = {
+                compound: get_compound_color(compound, event_session_data())
+                for compound in compound_colours
+            }
+
+            tyre_deg_plot = px.scatter(
+                tyre_deg_data,
+                x="TyreLife",
+                y="LapTime",
+                symbol="Stint",
+                color="Compound",
+                color_discrete_map=colour_compound_map,
+                template="plotly_dark",
+            )
+
+            tyre_deg_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
+            )
+
+            tyre_deg_plot.update_layout(
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                )
+            )
+
+            return tyre_deg_plot
+        return None
+
+    @render_widget()
+    def tyre_stint_boxplot():
+        if event_session_data() is not None:
+            event_data = event_session_data().laps.pick_drivers(input.driver())
+            event_data = event_data[event_data["IsAccurate"]]
+            tyre_deg_data = event_data[["LapTime", "TyreLife", "Compound", "Stint"]]
+            tyre_deg_data["Stint"] = tyre_deg_data["Stint"].apply(lambda x: int(x))
+            tyre_deg_data["LapTime"] = tyre_deg_data["LapTime"].apply(
+                lambda x: x.total_seconds()
+            )
+
+            compound_colours = list_compounds(event_session_data())
+            print(compound_colours)
+            colour_compound_map = {
+                compound: get_compound_color(compound, event_session_data())
+                for compound in compound_colours
+            }
+
+            tyre_deg_plot = px.box(
+                tyre_deg_data,
+                x="Stint",
+                y="LapTime",
+                color="Compound",
+                color_discrete_map=colour_compound_map,
+                template="plotly_dark",
+            )
+
+            tyre_deg_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
+            )
+
+            tyre_deg_plot.update_layout(
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                )
+            )
+
+            return tyre_deg_plot
         return None
 
 

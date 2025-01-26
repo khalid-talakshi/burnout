@@ -9,7 +9,7 @@ sprint_session_options = [
 conventional_session_options = [
     "Practice 1",
     "Practice 2",
-    "Practice3",
+    "Practice 3",
     "Qualifying",
     "Race",
 ]
