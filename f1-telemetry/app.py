@@ -1,9 +1,10 @@
+from turtle import color
 import fastf1.core
 import fastf1.events
 from shiny import App, ui, reactive, render
 from shinyswatch import theme
 import fastf1
-from fastf1.plotting import list_compounds, get_compound_color
+from fastf1.plotting import list_compounds, get_compound_color, get_driver_color
 from constants import (
     conventional_session_options,
     sprint_session_options,
@@ -48,6 +49,28 @@ app_ui = ui.page_sidebar(
             "Analysis",
             ui.card(output_widget("tyre_deg_plot")),
             ui.card(output_widget("tyre_stint_boxplot")),
+        ),
+        ui.nav_panel(
+            "Location",
+            ui.card(
+                ui.card(
+                    ui.layout_columns(
+                        ui.input_select("location_lap", "Lap", choices=[]),
+                        ui.input_select(
+                            "metric_select",
+                            "Metric",
+                            choices=["Speed", "RPM", "Throttle", "Brake", "nGear"],
+                        ),
+                    )
+                ),
+                ui.card(output_widget("location_telemetry")),
+                ui.card(
+                    ui.layout_columns(
+                        output_widget("location_xy_2d"),
+                        output_widget("location_z_2d"),
+                    )
+                ),
+            ),
         ),
     ),
     title="F1 Telemetry",
@@ -118,6 +141,7 @@ def server(input, output, session):
                     car_data["LapNumber"].to_list() if car_data is not None else []
                 )
                 ui.update_select("lap", choices=lap_numbers)
+                ui.update_select("location_lap", choices=lap_numbers)
 
     @reactive.effect
     @reactive.event(input.driver)
@@ -126,6 +150,7 @@ def server(input, output, session):
             car_data = event_session_data().laps.pick_driver(input.driver())
             lap_numbers = car_data["LapNumber"].to_list()
             ui.update_select("lap", choices=lap_numbers)
+            ui.update_select("location_lap", choices=lap_numbers)
 
     @render.data_frame
     def laps_df():
@@ -392,6 +417,110 @@ def server(input, output, session):
             )
 
             return tyre_deg_plot
+        return None
+
+    @render_widget
+    @reactive.event(input.location_lap, input.driver)
+    def location_telemetry():
+        input_lap = (
+            int(float(input.location_lap())) if input.lap() is not None else None
+        )
+        if input_lap is not None:
+            car_data = (
+                event_session_data()
+                .laps.pick_driver(input.driver())
+                .pick_lap(input_lap)
+                .get_telemetry()
+            )
+
+            speed_data = car_data[["Time", "X", "Y", "Z"]]
+            speed_data["Time"] = speed_data["Time"].apply(lambda x: x.total_seconds())
+
+            driver_colour = get_driver_color(input.driver(), event_session_data())
+
+            speed_plot = px.scatter_3d(
+                speed_data,
+                x="X",
+                y="Y",
+                z="Z",
+            )
+            speed_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
+                scene=dict(
+                    zaxis=dict(range=[-300, 300]),
+                ),
+            )
+            speed_plot.update_traces(marker=dict(color=driver_colour))
+
+            return speed_plot
+        return None
+
+    @render_widget
+    @reactive.event(input.location_lap, input.driver, input.metric_select)
+    def location_xy_2d():
+        input_lap = (
+            int(float(input.location_lap())) if input.lap() is not None else None
+        )
+        if input_lap is not None:
+            car_data = (
+                event_session_data()
+                .laps.pick_driver(input.driver())
+                .pick_lap(input_lap)
+                .get_telemetry()
+            )
+
+            speed_data = car_data[
+                ["Time", "X", "Y", "Z", "Speed", "RPM", "Throttle", "Brake", "nGear"]
+            ]
+            speed_data["Time"] = speed_data["Time"].apply(lambda x: x.total_seconds())
+            speed_data["nGear"] = speed_data["nGear"].apply(lambda x: str(x))
+
+            speed_plot = px.scatter(
+                speed_data,
+                x="X",
+                y="Y",
+                color=input.metric_select(),
+            )
+            speed_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
+            )
+
+            return speed_plot
+        return None
+
+    @render_widget
+    @reactive.event(input.location_lap, input.driver, input.metric_select)
+    def location_z_2d():
+        input_lap = (
+            int(float(input.location_lap())) if input.lap() is not None else None
+        )
+        if input_lap is not None:
+            car_data = (
+                event_session_data()
+                .laps.pick_driver(input.driver())
+                .pick_lap(input_lap)
+                .get_telemetry()
+            )
+
+            speed_data = car_data[
+                ["Time", "X", "Y", "Z", "Speed", "RPM", "Throttle", "Brake", "nGear"]
+            ]
+            speed_data["Time"] = speed_data["Time"].apply(lambda x: x.total_seconds())
+
+            speed_plot = px.scatter(
+                speed_data,
+                x="Time",
+                y="Z",
+                color=input.metric_select(),
+            )
+            speed_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
+            )
+            speed_plot.update_xaxes(color="white")
+            return speed_plot
         return None
 
 
