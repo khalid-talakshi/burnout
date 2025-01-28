@@ -7,3 +7,4 @@ build
 f2-data
 .vscode
 .venv
+airflow-burnout
