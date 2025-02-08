@@ -8,7 +8,7 @@ from constants import (
     year_options,
 )
 from fastf1.plotting import get_compound_color, get_driver_color, list_compounds
-from shiny import App, event, reactive, render, ui
+from shiny import App, reactive, render, ui
 from shinyswatch import theme
 from shinywidgets import output_widget, render_widget
 
