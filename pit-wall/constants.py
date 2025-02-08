@@ -13,3 +13,6 @@ conventional_session_options = [
     "Qualifying",
     "Race",
 ]
+
+telemetry_metrics = ["Speed", "RPM", "Throttle", "Brake", "nGear"]
+position_metrics = ["X", "Y", "Z", "Time"]

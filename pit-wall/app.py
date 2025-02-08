@@ -15,9 +15,17 @@ from shinywidgets import output_widget, render_widget
 
 def get_driver_options(session: fastf1.core.Session):
     driver_numbers = session.results
-    print(driver_numbers)
     driver_abbreviations = driver_numbers["Abbreviation"].to_list()
     return driver_abbreviations
+
+
+def clean_results_data(session: fastf1.core.Session):
+    data = session.results
+    data["Q1"] = data["Q1"].apply(lambda x: x.total_seconds())
+    data["Q2"] = data["Q2"].apply(lambda x: x.total_seconds())
+    data["Q3"] = data["Q3"].apply(lambda x: x.total_seconds())
+    data["Time"] = data["Time"].apply(lambda x: x.total_seconds())
+    return data
 
 
 app_ui = ui.page_sidebar(
@@ -25,19 +33,37 @@ app_ui = ui.page_sidebar(
         ui.input_select("year", label="Year", choices=year_options),
         ui.input_select("event", label="Event", choices={-1: ""}),
         ui.input_select("session", label="Session", choices=[]),
-        ui.input_select("driver", label="Driver", choices=[]),
         id="sidebar",
     ),
     ui.navset_tab(
         ui.nav_panel(
+            "Home",
+            ui.card(
+                ui.output_ui("session_info"),
+            ),
+            ui.card(
+                ui.output_data_frame("results_df"),
+            ),
+        ),
+        ui.nav_panel(
             "Laps",
+            ui.card(
+                ui.layout_columns(
+                    ui.input_select("laps_driver", label="Driver", choices=[]),
+                )
+            ),
             ui.card(
                 ui.output_data_frame("laps_df"),
             ),
         ),
         ui.nav_panel(
             "Telemetry",
-            ui.card(ui.input_select("lap", "Lap", choices=[])),
+            ui.card(
+                ui.layout_columns(
+                    ui.input_select("telemetry_driver", label="Driver", choices=[]),
+                    ui.input_select("lap", "Lap", choices=[]),
+                )
+            ),
             ui.card(output_widget("lap_speed_plot")),
             ui.card(output_widget("lap_gear_plot")),
             ui.card(output_widget("lap_rpm_plot")),
@@ -46,6 +72,11 @@ app_ui = ui.page_sidebar(
         ),
         ui.nav_panel(
             "Analysis",
+            ui.card(
+                ui.layout_columns(
+                    ui.input_select("analysis_driver", label="Driver", choices=[])
+                )
+            ),
             ui.card(output_widget("tyre_deg_plot")),
             ui.card(output_widget("tyre_stint_boxplot")),
         ),
@@ -54,6 +85,7 @@ app_ui = ui.page_sidebar(
             ui.card(
                 ui.card(
                     ui.layout_columns(
+                        ui.input_select("location_driver", label="Driver", choices=[]),
                         ui.input_select("location_lap", "Lap", choices=[]),
                         ui.input_select(
                             "metric_select",
@@ -89,6 +121,9 @@ def server(input, output, session):
     event_schedule_data = reactive.value(None)
     event_data = reactive.value(None)
     event_session_data = reactive.value(None)
+
+    base_depenedencies = [input.year, input.event, input.session]
+    laps_dependencies = [input.laps_driver, *base_depenedencies]
 
     @reactive.effect
     @reactive.event(input.year)
@@ -128,25 +163,59 @@ def server(input, output, session):
             if data is not None:
                 data.load(laps=True)
             event_session_data.set(data)
+
             ui.update_select(
-                "driver",
+                "laps_driver",
                 choices=get_driver_options(event_session_data())
                 if event_session_data() is not None
                 else [],
             )
-            if (input.driver() is not None) and (event_session_data() is not None):
-                car_data = event_session_data().laps.pick_driver(input.driver())
-                lap_numbers = (
-                    car_data["LapNumber"].to_list() if car_data is not None else []
+            ui.update_select(
+                "telemetry_driver",
+                choices=get_driver_options(event_session_data())
+                if event_session_data() is not None
+                else [],
+            )
+            ui.update_select(
+                "analysis_driver",
+                choices=get_driver_options(event_session_data())
+                if event_session_data() is not None
+                else [],
+            )
+            ui.update_select(
+                "location_driver",
+                choices=get_driver_options(event_session_data())
+                if event_session_data() is not None
+                else [],
+            )
+
+    @render.ui
+    def session_info():
+        if event_session_data() is not None:
+            session_info_data = event_session_data().session_info
+            return ui.TagList(
+                ui.markdown(
+                    f"""
+                # {session_info_data["Meeting"]["Name"]} 
+                Session Type: {session_info_data["Type"]}\n
+                Start Time: {session_info_data["StartDate"]}
+                """
                 )
-                ui.update_select("lap", choices=lap_numbers)
-                ui.update_select("location_lap", choices=lap_numbers)
+            )
+        return ui.markdown("No session data")
+
+    @render.data_frame
+    def results_df():
+        if event_session_data() is not None:
+            data = clean_results_data(event_session_data())
+            return render.DataTable(data)
+        return
 
     @reactive.effect
-    @reactive.event(input.driver)
+    @reactive.event(*laps_dependencies)
     def get_driver_telemetry():
-        if input.driver() is not None:
-            car_data = event_session_data().laps.pick_driver(input.driver())
+        if input.laps_driver() is not None:
+            car_data = event_session_data().laps.pick_drivers(input.laps_driver())
             lap_numbers = car_data["LapNumber"].to_list()
             ui.update_select("lap", choices=lap_numbers)
             ui.update_select("location_lap", choices=lap_numbers)
@@ -155,9 +224,7 @@ def server(input, output, session):
     def laps_df():
         print("===", event_session_data())
         if event_session_data() is not None:
-            if event_session_data().empty:
-                return None
-            data = event_session_data().laps.pick_driver(input.driver())
+            data = event_session_data().laps.pick_drivers(input.laps_driver())
             data["Lap"] = data["LapTime"].apply(lambda x: x.total_seconds())
             data["Lap Number"] = data["LapNumber"]
             data["Sector 1"] = data["Sector1Time"].apply(lambda x: x.total_seconds())
@@ -192,13 +259,12 @@ def server(input, output, session):
         return None
 
     @render_widget
-    @reactive.event(input.lap)
     def lap_speed_plot():
         input_lap = int(float(input.lap())) if input.lap() is not None else None
         if input_lap is not None:
             car_data = (
                 event_session_data()
-                .laps.pick_driver(input.driver())
+                .laps.pick_drivers(input.telemetry_driver())
                 .pick_lap(input_lap)
                 .get_telemetry()
             )
@@ -221,13 +287,12 @@ def server(input, output, session):
         return None
 
     @render_widget
-    @reactive.event(input.lap)
     def lap_gear_plot():
         input_lap = int(float(input.lap())) if input.lap() is not None else None
         if input_lap is not None:
             car_data = (
                 event_session_data()
-                .laps.pick_driver(input.driver())
+                .laps.pick_drivers(input.telemetry_driver())
                 .pick_lap(input_lap)
                 .get_telemetry()
             )
@@ -250,13 +315,12 @@ def server(input, output, session):
         return None
 
     @render_widget
-    @reactive.event(input.lap)
     def lap_rpm_plot():
         input_lap = int(float(input.lap())) if input.lap() is not None else None
         if input_lap is not None:
             car_data = (
                 event_session_data()
-                .laps.pick_driver(input.driver())
+                .laps.pick_drivers(input.telemetry_driver())
                 .pick_lap(input_lap)
                 .get_telemetry()
             )
@@ -279,13 +343,12 @@ def server(input, output, session):
         return None
 
     @render_widget
-    @reactive.event(input.lap)
     def lap_throttle_plot():
         input_lap = int(float(input.lap())) if input.lap() is not None else None
         if input_lap is not None:
             car_data = (
                 event_session_data()
-                .laps.pick_driver(input.driver())
+                .laps.pick_drivers(input.telemetry_driver())
                 .pick_lap(input_lap)
                 .get_telemetry()
             )
@@ -308,13 +371,12 @@ def server(input, output, session):
         return None
 
     @render_widget
-    @reactive.event(input.lap)
     def lap_brake_plot():
         input_lap = int(float(input.lap())) if input.lap() is not None else None
         if input_lap is not None:
             car_data = (
                 event_session_data()
-                .laps.pick_driver(input.driver())
+                .laps.pick_drivers(input.telemetry_driver())
                 .pick_lap(input_lap)
                 .get_telemetry()
             )
@@ -339,7 +401,7 @@ def server(input, output, session):
     @render_widget
     def tyre_deg_plot():
         if event_session_data() is not None:
-            event_data = event_session_data().laps.pick_drivers(input.driver())
+            event_data = event_session_data().laps.pick_drivers(input.analysis_driver())
             event_data = event_data[event_data["IsAccurate"]]
             tyre_deg_data = event_data[
                 ["LapTime", "TyreLife", "Compound", "Stint"]
@@ -350,7 +412,6 @@ def server(input, output, session):
             )
 
             compound_colours = list_compounds(event_session_data())
-            print(compound_colours)
             colour_compound_map = {
                 compound: get_compound_color(compound, event_session_data())
                 for compound in compound_colours
@@ -383,7 +444,7 @@ def server(input, output, session):
     @render_widget()
     def tyre_stint_boxplot():
         if event_session_data() is not None:
-            event_data = event_session_data().laps.pick_drivers(input.driver())
+            event_data = event_session_data().laps.pick_drivers(input.analysis_driver())
             event_data = event_data[event_data["IsAccurate"]]
             tyre_deg_data = event_data[["LapTime", "TyreLife", "Compound", "Stint"]]
             tyre_deg_data["Stint"] = tyre_deg_data["Stint"].apply(lambda x: int(x))
@@ -392,7 +453,6 @@ def server(input, output, session):
             )
 
             compound_colours = list_compounds(event_session_data())
-            print(compound_colours)
             colour_compound_map = {
                 compound: get_compound_color(compound, event_session_data())
                 for compound in compound_colours
@@ -422,7 +482,6 @@ def server(input, output, session):
         return None
 
     @render_widget
-    @reactive.event(input.location_lap, input.driver)
     def location_telemetry():
         input_lap = (
             int(float(input.location_lap())) if input.lap() is not None else None
@@ -430,7 +489,7 @@ def server(input, output, session):
         if input_lap is not None:
             car_data = (
                 event_session_data()
-                .laps.pick_driver(input.driver())
+                .laps.pick_drivers(input.location_driver())
                 .pick_lap(input_lap)
                 .get_telemetry()
             )
@@ -438,7 +497,9 @@ def server(input, output, session):
             speed_data = car_data[["Time", "X", "Y", "Z"]]
             speed_data["Time"] = speed_data["Time"].apply(lambda x: x.total_seconds())
 
-            driver_colour = get_driver_color(input.driver(), event_session_data())
+            driver_colour = get_driver_color(
+                input.location_driver(), event_session_data()
+            )
 
             speed_plot = px.scatter_3d(
                 speed_data,
@@ -449,9 +510,6 @@ def server(input, output, session):
             speed_plot.update_layout(
                 plot_bgcolor="#2D2D2D",
                 paper_bgcolor="#2D2D2D",
-                scene=dict(
-                    zaxis=dict(range=[-300, 300]),
-                ),
             )
             speed_plot.update_traces(marker=dict(color=driver_colour))
 
@@ -459,7 +517,6 @@ def server(input, output, session):
         return None
 
     @render_widget
-    @reactive.event(input.location_lap, input.driver, input.metric_select)
     def location_xy_2d():
         input_lap = (
             int(float(input.location_lap())) if input.lap() is not None else None
@@ -467,7 +524,7 @@ def server(input, output, session):
         if input_lap is not None:
             car_data = (
                 event_session_data()
-                .laps.pick_driver(input.driver())
+                .laps.pick_drivers(input.location_driver())
                 .pick_lap(input_lap)
                 .get_telemetry()
             )
@@ -493,7 +550,6 @@ def server(input, output, session):
         return None
 
     @render_widget
-    @reactive.event(input.location_lap, input.driver, input.metric_select)
     def location_z_2d():
         input_lap = (
             int(float(input.location_lap())) if input.lap() is not None else None
@@ -501,7 +557,7 @@ def server(input, output, session):
         if input_lap is not None:
             car_data = (
                 event_session_data()
-                .laps.pick_driver(input.driver())
+                .laps.pick_drivers(input.location_driver())
                 .pick_lap(input_lap)
                 .get_telemetry()
             )
