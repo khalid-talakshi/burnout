@@ -6,5 +6,5 @@ __pycache__
 build
 f2-data
 .vscode
-.venv
+.venv/
 airflow-burnout

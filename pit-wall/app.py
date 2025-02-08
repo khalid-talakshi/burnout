@@ -1,17 +1,16 @@
-from turtle import color
+import fastf1
 import fastf1.core
 import fastf1.events
-from shiny import App, ui, reactive, render
-from shinyswatch import theme
-import fastf1
-from fastf1.plotting import list_compounds, get_compound_color, get_driver_color
+import plotly.express as px
 from constants import (
     conventional_session_options,
     sprint_session_options,
     year_options,
 )
+from fastf1.plotting import get_compound_color, get_driver_color, list_compounds
+from shiny import App, event, reactive, render, ui
+from shinyswatch import theme
 from shinywidgets import output_widget, render_widget
-import plotly.express as px
 
 
 def get_driver_options(session: fastf1.core.Session):
@@ -73,7 +72,7 @@ app_ui = ui.page_sidebar(
             ),
         ),
     ),
-    title="F1 Telemetry",
+    title="Pit Wall",
     theme=theme.darkly,
 )
 
@@ -154,7 +153,10 @@ def server(input, output, session):
 
     @render.data_frame
     def laps_df():
+        print("===", event_session_data())
         if event_session_data() is not None:
+            if event_session_data().empty:
+                return None
             data = event_session_data().laps.pick_driver(input.driver())
             data["Lap"] = data["LapTime"].apply(lambda x: x.total_seconds())
             data["Lap Number"] = data["LapNumber"]

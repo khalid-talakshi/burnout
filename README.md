@@ -9,3 +9,6 @@ PyBurnout is our own little package that we are building for helpful analysis. F
 ## Notebooks
 
 The notebooks folder will have all of our different Python and R notebooks for data analysis that we do on the podcast. As more episodes get complete, we will be publishing more scripts and notebooks under here. While not every episode will have full on data analysis, there should always be some sort of script to run.
+
+## Pitwall
+Pit wall is our app for analysis of telemetry data. Built using FastF1 and Shiny, it provides lap analysis, location based graphing, and key metrics.
