@@ -101,6 +101,22 @@ app_ui = ui.page_sidebar(
                         output_widget("location_z_2d"),
                     )
                 ),
+                ui.card(
+                    output_widget("delta_xy_2d"),
+                ),
+            ),
+        ),
+        ui.nav_panel(
+            "Quali Comp",
+            ui.card(
+                ui.layout_columns(
+                    ui.input_select(
+                        "quali_comp_driver_1", label="Driver 1", choices=[]
+                    ),
+                    ui.input_select(
+                        "quali_comp_driver_2", label="Driver 2", choices=[]
+                    ),
+                )
             ),
         ),
     ),
@@ -578,6 +594,39 @@ def server(input, output, session):
                 paper_bgcolor="#2D2D2D",
             )
             speed_plot.update_xaxes(color="white")
+            return speed_plot
+        return None
+
+    @render_widget
+    def delta_xy_2d():
+        input_lap = (
+            int(float(input.location_lap())) if input.lap() is not None else None
+        )
+        if input_lap is not None:
+            car_data = (
+                event_session_data()
+                .laps.pick_drivers(input.location_driver())
+                .pick_lap(input_lap)
+                .get_telemetry()
+            )
+
+            speed_data = car_data[
+                ["Time", "X", "Y", "Z", "Speed", "RPM", "Throttle", "Brake", "nGear"]
+            ]
+            speed_data["Time"] = speed_data["Time"].apply(lambda x: x.total_seconds())
+            speed_data["dx"] = speed_data["X"].diff()
+            speed_data["dy"] = speed_data["Y"].diff()
+
+            speed_plot = px.scatter(speed_data, x="Time", y="dx", trace="dx")
+
+            speed_plot.add_scatter(
+                x=speed_data["Time"], y=speed_data["dy"], mode="markers"
+            )
+            speed_plot.update_layout(
+                plot_bgcolor="#2D2D2D",
+                paper_bgcolor="#2D2D2D",
+            )
+
             return speed_plot
         return None
 
