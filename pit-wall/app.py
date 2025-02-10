@@ -6,11 +6,14 @@ from constants import (
     conventional_session_options,
     sprint_session_options,
     year_options,
+    telemetry_metrics,
+    position_metrics,
 )
 from fastf1.plotting import get_compound_color, get_driver_color, list_compounds
 from shiny import App, reactive, render, ui
 from shinyswatch import theme
 from shinywidgets import output_widget, render_widget
+import numpy as np
 
 
 def get_driver_options(session: fastf1.core.Session):
@@ -25,6 +28,27 @@ def clean_results_data(session: fastf1.core.Session):
     data["Q2"] = data["Q2"].apply(lambda x: x.total_seconds())
     data["Q3"] = data["Q3"].apply(lambda x: x.total_seconds())
     data["Time"] = data["Time"].apply(lambda x: x.total_seconds())
+    return data
+
+def create_vector_sets(data: fastf1.core.Telemetry):
+    data["dx"] = data["X"].diff()
+    data["dy"] = data["Y"].diff()
+    
+    def create_angles(xs, ys):
+        angles = [None]
+        assert len(xs) == len(ys)
+        for i in range(1, len(xs)):
+            v1 = np.array([xs.iloc[i-1], ys.iloc[i-1]])
+            v2 = np.array([xs.iloc[i], ys.iloc[i]])
+            dot = np.dot(v1, v2)
+            v1_norm = np.linalg.norm(v1)
+            v2_norm = np.linalg.norm(v2)
+            angle = np.arccos(dot / (v1_norm * v2_norm))
+            angle = np.degrees(angle)
+            angles.append(angle)
+        return angles
+    data["angles"] = create_angles(data["X"], data["Y"])
+    data["cumulative_angles"] = data["angles"].cumsum()
     return data
 
 
@@ -611,17 +635,14 @@ def server(input, output, session):
             )
 
             speed_data = car_data[
-                ["Time", "X", "Y", "Z", "Speed", "RPM", "Throttle", "Brake", "nGear"]
+                [*position_metrics, *telemetry_metrics]
             ]
             speed_data["Time"] = speed_data["Time"].apply(lambda x: x.total_seconds())
-            speed_data["dx"] = speed_data["X"].diff()
-            speed_data["dy"] = speed_data["Y"].diff()
+            speed_data = create_vector_sets(speed_data)
+            print(speed_data)
 
-            speed_plot = px.scatter(speed_data, x="Time", y="dx", trace="dx")
+            speed_plot = px.scatter(speed_data, x="Time", y="angles")
 
-            speed_plot.add_scatter(
-                x=speed_data["Time"], y=speed_data["dy"], mode="markers"
-            )
             speed_plot.update_layout(
                 plot_bgcolor="#2D2D2D",
                 paper_bgcolor="#2D2D2D",
