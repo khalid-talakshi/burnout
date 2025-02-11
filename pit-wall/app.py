@@ -30,25 +30,36 @@ def clean_results_data(session: fastf1.core.Session):
     data["Time"] = data["Time"].apply(lambda x: x.total_seconds())
     return data
 
+
 def create_vector_sets(data: fastf1.core.Telemetry):
     data["dx"] = data["X"].diff()
     data["dy"] = data["Y"].diff()
-    
-    def create_angles(xs, ys):
-        angles = [None]
-        assert len(xs) == len(ys)
-        for i in range(1, len(xs)):
-            v1 = np.array([xs.iloc[i-1], ys.iloc[i-1]])
-            v2 = np.array([xs.iloc[i], ys.iloc[i]])
-            dot = np.dot(v1, v2)
-            v1_norm = np.linalg.norm(v1)
-            v2_norm = np.linalg.norm(v2)
-            angle = np.arccos(dot / (v1_norm * v2_norm))
-            angle = np.degrees(angle)
-            angles.append(angle)
-        return angles
-    data["angles"] = create_angles(data["X"], data["Y"])
-    data["cumulative_angles"] = data["angles"].cumsum()
+    data["dirX"] = [None] + [
+        data["X"].iloc[i] - data["X"].iloc[i - 1] for i in range(1, len(data["X"]))
+    ]
+    data["dirY"] = [None] + [
+        data["Y"].iloc[i] - data["Y"].iloc[i - 1] for i in range(1, len(data["Y"]))
+    ]
+
+    thetas = []
+    for i in range(2, len(data["dirX"])):
+        assert len(data["dirX"]) == len(data["dirY"])
+        vec1 = np.array([data["dirX"].iloc[i], data["dirY"].iloc[i]])
+        vec2 = np.array([data["dirX"].iloc[i - 1], data["dirY"].iloc[i - 1]])
+
+        dot_product = np.dot(vec1, vec2)
+        mag1 = np.linalg.norm(vec1)
+        mag2 = np.linalg.norm(vec2)
+        cos_theta = dot_product / (mag1 * mag2)
+        angle = np.arccos(cos_theta)
+        angle = np.degrees(angle)
+
+        thetas.append(angle)
+
+    data["angles"] = [None, None] + thetas
+
+    print(data[["Time", "X", "Y", "dirX", "dirY", "angles"]])
+
     return data
 
 
@@ -634,9 +645,7 @@ def server(input, output, session):
                 .get_telemetry()
             )
 
-            speed_data = car_data[
-                [*position_metrics, *telemetry_metrics]
-            ]
+            speed_data = car_data[[*position_metrics, *telemetry_metrics]]
             speed_data["Time"] = speed_data["Time"].apply(lambda x: x.total_seconds())
             speed_data = create_vector_sets(speed_data)
             print(speed_data)
