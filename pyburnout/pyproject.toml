@@ -2,18 +2,14 @@
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["interfaces", "scrapers"]
-
 [project]
 name = "pyburnout"
 version = "1.0.0"
-readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Khalid Talakshi", email = "khalid.talakshi@outlook.com" }]
 description = "Code for the Burnouts F1 Podcast"
 keywords = ["f1", "python", "data", "api"]
-dependencies = ["requests", "beautifulsoup4", "urllib3"]
+dependencies = ["requests", "beautifulsoup4", "urllib3", "numpy"]
 
 [project.urls]
 Repository = "https://github.com/khalid-talakshi/burnout"
