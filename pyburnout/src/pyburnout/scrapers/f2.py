@@ -6,6 +6,18 @@ import os
 
 
 class F2SiteScraper:
+    SEASON_IDS = {
+        2025: 182,
+        2024: 181,
+        2023: 180,
+        2022: 179,
+        2021: 178,
+        2020: 177,
+        2019: 176,
+        2018: 175,
+        2017: 174,
+    }
+
     def __init__(self, dirpath="", logger: logging.Logger = None):
         self.dirpath = dirpath
         self.logger = logger if logger else logging.Logger(__name__)
@@ -29,8 +41,8 @@ class F2SiteScraper:
             writer.writerow(headings)
             writer.writerows(content)
 
-    def get_driver_standings(self):
-        url = f"{self.BASE_URL}/{self.PATHS['driver_standings']}"
+    def get_driver_standings(self, season=2025):
+        url = f"{self.BASE_URL}/{self.PATHS['driver_standings']}?seasonId={self.SEASON_IDS[season]}"
 
         driver = webdriver.Chrome()
         driver.get(url)
@@ -71,10 +83,10 @@ class F2SiteScraper:
 
         driver.quit()
 
-        self.write_data_to_csv(headings, content, "f2_driver_standings.csv")
+        self.write_data_to_csv(headings, content, f"f2_{season}_driver_standings.csv")
 
-    def get_team_standings(self):
-        url = f"{self.BASE_URL}/{self.PATHS['team_standings']}"
+    def get_team_standings(self, season=2025):
+        url = f"{self.BASE_URL}/{self.PATHS['team_standings']}?seasonId={self.SEASON_IDS[season]}"
 
         driver = webdriver.Chrome()
         driver.get(url)
@@ -115,4 +127,4 @@ class F2SiteScraper:
 
         driver.quit()
 
-        self.write_data_to_csv(headings, content, "f2_team_standings.csv")
+        self.write_data_to_csv(headings, content, f"f2_{season}_team_standings.csv")

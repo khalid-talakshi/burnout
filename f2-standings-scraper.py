@@ -11,5 +11,7 @@ logger.addHandler(console_handler)
 
 f2_scrapper = F2SiteScraper(dirpath="./f2-data", logger=logger)
 
-f2_scrapper.get_driver_standings()
-f2_scrapper.get_team_standings()
+f2_scrapper.get_driver_standings(2025)
+f2_scrapper.get_team_standings(2025)
+f2_scrapper.get_driver_standings(2024)
+f2_scrapper.get_team_standings(2024)
