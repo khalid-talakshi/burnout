@@ -1,4 +1,5 @@
 venv
+.venv
 fia-docs
 assets
 __pycache__
