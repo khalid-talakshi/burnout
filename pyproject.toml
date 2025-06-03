@@ -1,0 +1,11 @@
+[project]
+name = "burnout"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastf1>=3.5.3",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.10.3",
+]

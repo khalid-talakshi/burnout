@@ -1,0 +1,274 @@
+---
+format:
+  html:
+    html-table-formatting: false
+execute:
+  echo: false
+jupyter: python3
+---
+```{python}
+import fastf1
+import fastf1.core
+import fastf1.events
+from fastf1.plotting import get_compound_color, get_driver_color, list_compounds
+import matplotlib.pyplot as plt
+import fastf1.logger
+import logging
+from IPython.display import display, HTML
+import warnings
+import pandas as pd
+
+warnings.filterwarnings("ignore")
+fastf1.logger.LoggingManager.set_level(logging.ERROR)
+
+year = 2022
+driver_num = "1"
+race = "Canada"
+
+quali_session = fastf1.get_session(year, race, "Q")
+quali_session.load()
+
+session = fastf1.get_session(year, race, "R")
+session.load()
+
+driver_result = session.get_driver(driver_num)
+driver_quali_result = quali_session.get_driver(driver_num)
+
+fastest_lap = session.laps.pick_drivers(driver_num).pick_fastest()
+
+
+def group_into_windows(points, gap=1):
+    if not points:
+        return []
+
+    sorted_points = sorted(points)
+    windows = []
+    start = end = sorted_points[0]
+
+    for point in sorted_points[1:]:
+        if point <= end + gap:
+            end = point
+        else:
+            windows.append((start, end))
+            start = end = point
+
+    windows.append((start, end))
+    return windows
+
+
+def pos_change(change):
+    if change > 0:
+        return "-"
+    elif change < 0:
+        return "+"
+    else:
+        return ""
+```
+
+```{python}
+def create_header():
+    driver_headshot = driver_result["HeadshotUrl"]
+    driver_full_name = driver_result["FullName"]
+    driver_classfieid = driver_result["ClassifiedPosition"]
+    driver_grid = driver_result["GridPosition"]
+    driver_pos_change = int(driver_classfieid) - int(driver_grid)
+    driver_team = driver_result["TeamName"]
+    driver_time = driver_result["Time"].total_seconds()
+    fastest_lap_time = fastest_lap["LapTime"].total_seconds()
+
+    table = "<table class='table'><tbody>"
+
+    table_row_1 = f"<tr><td rowspan='2' style='width: 25%;'><img src='{driver_headshot}' /></td><td colspan='2' style='font-weight: bold; font-size: 1.5em'>{driver_full_name}</td><td style='font-weight: bold; font-size: 1.25em'>{session.event.EventName}</td></tr>"
+
+    table += table_row_1
+
+    table_row_2 = f"<tr><td>Team: {driver_team}</td><td>Position: {driver_classfieid} ({pos_change(driver_pos_change)}{abs(driver_pos_change)})</td><td>Fastest Lap: {fastest_lap_time}</tr>"
+
+    table += table_row_2
+
+    table += "</tbody></table>"
+
+    return f"<div>{table}</div>"
+
+
+display(HTML(create_header()))
+```
+
+```{python}
+laps = session.laps.pick_driver(driver_num)
+laps["LapSeconds"] = laps["LapTime"].apply(lambda x: x.total_seconds())
+
+
+def create_pairs(lst):
+    res = []
+    pair = None
+    for item in sorted(lst):
+        if pair is None:
+            pair = item
+        else:
+            tup = (pair, item)
+            res.append(tup)
+            pair = None
+    return res
+
+
+def create_windows(lst):
+    if len(lst) == 0:
+        return []
+    res = []
+    stack = []
+    lst = sorted(lst)
+    item = lst.pop(0)
+    stack.append(item)
+    while len(lst) > 0:
+        item = lst.pop(0)
+        if item - 1 != stack[-1]:
+            tup = (stack[0], stack[-1])
+            res.append(tup)
+            stack = []
+        stack.append(item)
+    if len(stack) > 0:
+        tup = (stack[0], stack[-1])
+        res.append(tup)
+    return res
+
+
+def create_regions(laps):
+    pit_laps = create_pairs(
+        list(
+            laps[laps["PitInTime"].notnull() | laps["PitOutTime"].notnull()][
+                "LapNumber"
+            ]
+        )
+    )
+
+    yellow_flag_laps = create_windows(
+        list(laps[laps["TrackStatus"].str.contains("2")]["LapNumber"])
+    )
+
+    sc_laps = list(laps[laps["TrackStatus"].str.contains("4")]["LapNumber"])
+    safety_car_laps = create_windows(sc_laps)
+
+    red_flag_laps = create_windows(
+        list(laps[laps["TrackStatus"].str.contains("5")]["LapNumber"])
+    )
+
+    vsc_car_laps = create_windows(
+        list(laps[laps["TrackStatus"].str.contains("6")]["LapNumber"])
+    )
+
+    return {
+        "pits": pit_laps,
+        "yellow": yellow_flag_laps,
+        "safety": safety_car_laps,
+        "red": red_flag_laps,
+        "vsc": vsc_car_laps,
+    }
+
+
+def color_reigons(ax, region_list, color):
+    for lap in region_list:
+        if isinstance(lap, tuple):
+            ax.axvspan(lap[0], lap[1], color=color, alpha=0.3)
+        else:
+            ax.axvline(x=lap, color=color)
+
+
+region_colors = {
+    "pits": "#b2bec3",
+    "yellow": "#fdcb6e",
+    "safety": "#1e3799",
+    "red": "#d63031",
+    "vsc": "#74b9ff",
+}
+```
+
+```{python}
+# | fig-align: center
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot("LapNumber", "LapSeconds", data=laps, linestyle="-", marker="o")
+ax.set_title("Laps")
+ax.set_xlabel("Lap Num")
+ax.set_ylabel("Seconds")
+
+regions = create_regions(laps)
+
+for region in regions.keys():
+    if len(region) > 0:
+        color_reigons(ax, regions[region], region_colors[region])
+
+fig.show()
+```
+
+```{python}
+# | fig-align: center
+compound_frame = laps[["LapNumber", "Stint", "Compound"]]
+records = compound_frame.to_dict("records")
+windows = []
+start_lap = records[0]["LapNumber"]
+current_lap = records[0]["LapNumber"]
+current_stint = records[0]["Stint"]
+current_compound = records[0]["Compound"]
+
+tup = None
+
+for i in range(1, len(records)):
+    current_record = records[i]
+    if current_record["Stint"] != current_stint:
+        tup = (start_lap, current_lap, current_compound)
+        windows.append(tup)
+        start_lap = current_record["LapNumber"]
+        current_lap = current_record["LapNumber"]
+        current_compound = current_record["Compound"]
+        current_stint = current_record["Stint"]
+    elif i == len(records) - 1:
+        current_lap = current_record["LapNumber"]
+        current_compound = current_record["Compound"]
+        current_stint = current_record["Stint"]
+        tup = (start_lap, current_lap, current_compound)
+        windows.append(tup)
+    else:
+        current_lap = current_record["LapNumber"]
+
+fig, ax = plt.subplots(figsize=(10, 0.5))
+for window in windows:
+    ax.barh(
+        1,
+        width=window[1] - window[0] + 1,
+        left=window[0],
+        edgecolor="#000",
+        color=get_compound_color(window[2], session),
+    )
+
+ax.set_ylabel("Stints")
+
+fig.gca().axes.yaxis.set_ticks([1])
+fig.show()
+```
+```{python}
+# | fig-align: center
+from matplotlib.ticker import MultipleLocator
+
+position_df = laps[["LapNumber", "Position"]]
+
+position_df = pd.concat(
+    [
+        position_df,
+        pd.DataFrame([{"LapNumber": 0, "Position": driver_result["GridPosition"]}]),
+    ]
+).sort_values(by="LapNumber")
+
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot("LapNumber", "Position", data=position_df)
+ax.set_title("Position")
+ax.set_xlabel("Lap")
+ax.set_ylabel("Position")
+ax.yaxis.set_major_locator(MultipleLocator(1))
+
+
+for region in regions.keys():
+    color_reigons(ax, regions[region], region_colors[region])
+
+fig.gca().invert_yaxis()
+```
