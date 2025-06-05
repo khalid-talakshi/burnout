@@ -1,10 +1,14 @@
 import requests
 import pandas as pd
 import time
+import warnings
+
+warnings.filterwarnings("ignore")
+
 
 BASE_URL = "http://api.jolpi.ca/ergast/f1"
 circuit = "monza"
-years = [x for x in range(2000, 2025)]
+years = [x for x in range(1950, 2025)]
 
 result_data = []
 
@@ -19,6 +23,7 @@ for year in years:
     results = []
     for race in race_data:
         results.append(race["Results"])
+    print(results)
 
     for res in results:
         result_data.extend(
