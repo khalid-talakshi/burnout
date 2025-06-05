@@ -8,7 +8,7 @@ warnings.filterwarnings("ignore")
 
 BASE_URL = "http://api.jolpi.ca/ergast/f1"
 circuit = "monza"
-years = [x for x in range(1950, 2025)]
+years = [x for x in range(1950, 2026)]
 
 result_data = []
 
