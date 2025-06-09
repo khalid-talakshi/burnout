@@ -7,7 +7,7 @@ warnings.filterwarnings("ignore")
 
 
 BASE_URL = "http://api.jolpi.ca/ergast/f1"
-circuit = "monza"
+circuit = "bahrain"
 years = [x for x in range(1950, 2026)]
 
 result_data = []
@@ -42,7 +42,7 @@ for year in years:
             )
         )
 
-    time.sleep(4)
+    time.sleep(1)
 
 result_df = pd.DataFrame(data=result_data)
 
